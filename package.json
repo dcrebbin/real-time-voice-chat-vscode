@@ -11,10 +11,32 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "voice-mode",
+          "title": "Voice Mode",
+          "icon": "$(mic)"
+        }
+      ]
+    },
+    "views": {
+      "voice-mode": [
+        {
+          "type": "webview",
+          "id": "voice-mode-view",
+          "name": "Voice Mode Controls"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "voice-mode.helloWorld",
-        "title": "Voice Mode Test"
+        "title": "Voice Mode: Test"
+      },
+      {
+        "command": "voice-mode.showView",
+        "title": "Voice Mode: Show View"
       }
     ]
   },
