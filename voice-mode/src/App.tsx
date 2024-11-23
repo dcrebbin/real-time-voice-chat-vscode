@@ -18,6 +18,8 @@ function App() {
   <path fill-rule="evenodd" clip-rule="evenodd" d="M7 5C7 3.34315 8.34315 2 10 2H19C20.6569 2 22 3.34315 22 5V14C22 15.6569 20.6569 17 19 17H17V19C17 20.6569 15.6569 22 14 22H5C3.34315 22 2 20.6569 2 19V10C2 8.34315 3.34315 7 5 7H7V5ZM9 7H14C15.6569 7 17 8.34315 17 10V15H19C19.5523 15 20 14.5523 20 14V5C20 4.44772 19.5523 4 19 4H10C9.44772 4 9 4.44772 9 5V7ZM5 9C4.44772 9 4 9.44772 4 10V19C4 19.5523 4.44772 20 5 20H14C14.5523 20 15 19.5523 15 19V10C15 9.44772 14.5523 9 14 9H5Z" fill="currentColor"></path>
   </svg>`;
 
+  const [isRetrievingMessages, setIsRetrievingMessages] = useState(false);
+
   async function convertMarkdownToHTML(content: string, index: number) {
     // Configure marked options
     const marked = new Marked({
@@ -173,6 +175,26 @@ function App() {
     }
   }, []);
 
+  const LoadingIcon = useMemo(
+    () => (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        strokeWidth="1.5"
+        stroke="currentColor"
+        className="size-4"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"
+        />
+      </svg>
+    ),
+    []
+  );
+
   function handleMessageRetrievalDelayChange(
     e: React.ChangeEvent<HTMLInputElement>
   ) {
@@ -253,6 +275,21 @@ function App() {
         }}
       >
         Get latest conversation
+      </VSCodeButton>
+      <VSCodeButton
+        className="w-full flex justify-center"
+        onClick={() => setIsRetrievingMessages(!isRetrievingMessages)}
+      >
+        {isRetrievingMessages ? (
+          <span className="flex gap-2 items-center w-full justify-center">
+            <span>Stop Retrieving Messages</span>
+            <span className="animate-spin">{LoadingIcon}</span>
+          </span>
+        ) : (
+          <span className="flex gap-2 items-center w-full justify-center">
+            <span>Start Retrieving Messages</span>
+          </span>
+        )}
       </VSCodeButton>
       <p>Latest message:</p>
       <div
