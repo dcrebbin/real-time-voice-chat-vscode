@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import { useRef, useMemo } from "react";
 import type { WebviewApi } from "vscode-webview";
-import { Marked } from "marked";
+import { Marked, options } from "marked";
 import { markedHighlight } from "marked-highlight";
 import hljs from "highlight.js";
+import markedKatex, { MarkedKatexOptions } from "marked-katex-extension";
 
 declare function acquireVsCodeApi(): any;
 const vscode: WebviewApi<unknown> = acquireVsCodeApi();
@@ -22,8 +23,8 @@ function App() {
   const [debugLog, setDebugLog] = useState("");
   const [isRetrievingMessages, setIsRetrievingMessages] = useState(false);
 
+  let intervalIsOn = false;
   const state = useRef({
-    isRetrievingMessages: false,
     lastMessageReceivedId: "",
     conversationId: "",
   });
@@ -107,8 +108,12 @@ function App() {
       return `<p class="mb-4">${text}</p>`;
     };
 
+    const katexOptions: MarkedKatexOptions = {
+      throwOnError: false,
+    };
+    const katex = markedKatex(katexOptions);
     // Set the custom renderer
-    marked.use({ renderer });
+    marked.use({ renderer, ...katex });
 
     // Convert markdown to HTML
     return marked.parse(content);
@@ -212,16 +217,6 @@ function App() {
     }
   }, []);
 
-  useEffect(() => {
-    if (!state.current.isRetrievingMessages) {
-      vscode.postMessage({
-        type: "log",
-        payload: "Stopping retrieval interval",
-      });
-      clearInterval(retrievalInterval);
-    }
-  }, [state.current.isRetrievingMessages]);
-
   const LoadingIcon = useMemo(
     () => (
       <svg
@@ -268,18 +263,29 @@ function App() {
     });
   }
 
+  useEffect(() => {
+    if (isRetrievingMessages) {
+      startRetrievingMessages();
+    } else {
+      if (retrievalInterval) {
+        clearInterval(retrievalInterval);
+      }
+    }
+  }, [isRetrievingMessages]);
+
   function startRetrievingMessages() {
+    if (retrievalInterval) {
+      clearInterval(retrievalInterval);
+    }
+
     retrievalInterval = setInterval(() => {
       vscode.postMessage({
         type: "log",
         payload: `Retrieving latest message: ${
-          state.current.isRetrievingMessages ? "true" : "false"
+          isRetrievingMessages ? "true" : "false"
         }`,
       });
-      if (!state.current.isRetrievingMessages) {
-        clearInterval(retrievalInterval);
-        return;
-      }
+      retrieveLatestMessage();
     }, messageRetrievalDelay);
   }
 
@@ -348,23 +354,10 @@ function App() {
       <VSCodeButton
         className="w-full flex justify-center"
         onClick={() => {
-          setIsRetrievingMessages((prevIsRetrieving) => {
-            const newIsRetrieving = !prevIsRetrieving;
-            state.current.isRetrievingMessages = newIsRetrieving;
-
-            vscode.postMessage({
-              type: "log",
-              payload: `Is retrieving messages: ${newIsRetrieving}`,
-            });
-
-            if (newIsRetrieving) {
-              startRetrievingMessages();
-            } else {
-              clearInterval(retrievalInterval);
-            }
-
-            return newIsRetrieving;
-          });
+          if (retrievalInterval) {
+            clearInterval(retrievalInterval);
+          }
+          setIsRetrievingMessages(!isRetrievingMessages);
         }}
       >
         {isRetrievingMessages ? (
