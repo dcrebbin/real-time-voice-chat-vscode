@@ -79,6 +79,7 @@ function App() {
   const inputMemo = useMemo(() => {
     return (
       <input
+        className="w-full text-black resize-y"
         onChange={handleAuthTokenChange}
         type="password"
         ref={authTokenRef}
@@ -103,18 +104,17 @@ function App() {
         });
         const data = JSON.parse(message.payload);
         switch (message.requestedBy) {
-          case "auth-token":
+          case "get-latest-conversation-id":
             setConversationId(data?.items[0]?.id || JSON.stringify(data));
             break;
-          case "conversation":
+          case "get-latest-message":
             const filteredMapping = Object.entries(data.mapping).filter(
               ([key, value]: [string, any]) =>
                 value?.message?.author?.role === "assistant"
             );
 
-            const entries = Object.entries(filteredMapping);
-            const lastEntry: [string, any] = entries[entries.length - 1];
-            const entry = lastEntry[1][1];
+            const lastEntry = filteredMapping[filteredMapping.length - 1];
+            const entry = lastEntry[1] as any;
             const message =
               entry.message.content?.parts[0]?.text ||
               entry.message.content.parts[0];
@@ -133,17 +133,28 @@ function App() {
       <VSCodeButton
         onClick={async () => {
           const authToken = authTokenRef.current?.value || "";
-
           window.localStorage.setItem("authToken", authToken);
-
           vscode.postMessage({
             type: "display",
-            payload: `Auth token saved to local storage, retrieving latest conversation ID`,
+            payload: `Auth token saved to local storage`,
           });
+        }}
+      >
+        Set auth token
+      </VSCodeButton>
+      <VSCodeButton
+        disabled={authTokenRef.current?.value === ""}
+        onClick={async () => {
+          const authToken = authTokenRef.current?.value || "";
+          vscode.postMessage({
+            type: "log",
+            payload: `Getting latest conversation ID with auth token: ${authToken}`,
+          });
+          setConversationId("Loading...");
           vscode.postMessage({
             type: "request",
             payload: {
-              requestedBy: "auth-token",
+              requestedBy: "get-latest-conversation-id",
               method: "GET",
               url: "https://chatgpt.com/backend-api/conversations?offset=0&limit=1&order=updated",
               headers: {
@@ -154,17 +165,19 @@ function App() {
           });
         }}
       >
-        Set auth token
+        Get Latest Conversation ID
       </VSCodeButton>
       <p>Conversation ID:</p>
       <p>{conversationId}</p>
       <VSCodeButton
+        disabled={!conversationId}
         onClick={() => {
+          setLatestMessage("Loading...");
           const authToken = authTokenRef.current?.value || "";
           vscode.postMessage({
             type: "request",
             payload: {
-              requestedBy: "conversation",
+              requestedBy: "get-latest-message",
               method: "GET",
               url: `https://chatgpt.com/backend-api/conversation/${conversationId}`,
               headers: {
