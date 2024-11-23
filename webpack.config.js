@@ -4,45 +4,65 @@
 
 const path = require('path');
 
-//@ts-check
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
 
 /** @type WebpackConfig */
 const extensionConfig = {
-  target: 'node', // VS Code extensions run in a Node.js-context 📖 -> https://webpack.js.org/configuration/node/
-	mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
-
-  entry: './src/extension.ts', // the entry point of this extension, 📖 -> https://webpack.js.org/configuration/entry-context/
+  target: 'node', // Target Node.js for the extension runtime
+  mode: 'none', // Leave unminified for easier debugging during development
+  entry: './src/extension.ts',
   output: {
-    // the bundle is stored in the 'dist' folder (check package.json), 📖 -> https://webpack.js.org/configuration/output/
     path: path.resolve(__dirname, 'dist'),
     filename: 'extension.js',
-    libraryTarget: 'commonjs2'
+    libraryTarget: 'commonjs2', // VS Code uses CommonJS for extensions
   },
   externals: {
-    vscode: 'commonjs vscode' // the vscode-module is created on-the-fly and must be excluded. Add other modules that cannot be webpack'ed, 📖 -> https://webpack.js.org/configuration/externals/
-    // modules added here also need to be added in the .vscodeignore file
+    vscode: 'commonjs vscode', // Prevent bundling the VS Code module
   },
   resolve: {
-    // support reading TypeScript and JavaScript files, 📖 -> https://github.com/TypeStrong/ts-loader
-    extensions: ['.ts', '.js']
+    extensions: ['.ts', '.js', '.tsx', '.jsx'], // Support TS and JSX/TSX
   },
   module: {
     rules: [
       {
-        test: /\.ts$/,
+        test: /\.tsx?$/,
         exclude: /node_modules/,
-        use: [
-          {
-            loader: 'ts-loader'
-          }
-        ]
-      }
-    ]
+        use: [{ loader: 'ts-loader' }], // Use ts-loader for TypeScript
+      },
+    ],
   },
-  devtool: 'nosources-source-map',
+  devtool: 'source-map', // Generate source maps for easier debugging
   infrastructureLogging: {
-    level: "log", // enables logging required for problem matchers
+    level: 'log',
   },
 };
-module.exports = [ extensionConfig ];
+
+/** @type WebpackConfig */
+const webviewConfig = {
+  target: 'web', // Target browsers for the webview
+  mode: 'production', // Minify and optimize for production
+  entry: './src/webview/App.tsx', // Entry point for the React webview
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'webview.js',
+    libraryTarget: 'module', // Use ECMAScript modules for modern browsers
+  },
+  resolve: {
+    extensions: ['.ts', '.js', '.tsx', '.jsx'], // Support TS and JSX/TSX
+  },
+  module: {
+    rules: [
+      {
+        test: /\.tsx?$/,
+        exclude: /node_modules/,
+        use: [{ loader: 'ts-loader' }], // Use ts-loader for TypeScript
+      },
+    ],
+  },
+  experiments: {
+    outputModule: true, // Enable ECMAScript module output
+  },
+  devtool: 'nosources-source-map', // Avoid exposing original source in production
+};
+
+module.exports = [extensionConfig, webviewConfig];
