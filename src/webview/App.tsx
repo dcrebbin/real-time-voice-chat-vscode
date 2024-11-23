@@ -1,6 +1,8 @@
+import type { WebviewApi } from "vscode-webview";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import ReactDOM from "react-dom/client";
-
+declare function acquireVsCodeApi(): any;
+const vscode: WebviewApi<unknown> = acquireVsCodeApi();
 const App: React.FC = () => {
   const [authToken, setAuthToken] = useState("");
   const [conversationId, setConversationId] = useState("");
@@ -81,12 +83,27 @@ const App: React.FC = () => {
   return (
     <div>
       <h2>Realtime Voice Mode Chat</h2>
+      <button
+        onClick={() => {
+          console.log("Test button clicked");
+          vscode.postMessage({
+            type: "testButton",
+            payload: "Hello World!",
+          });
+        }}
+      >
+        Test Button
+      </button>
       <p>Auth token:</p>
       {inputMemo}
       <button
         onClick={() => {
-          console.log("Setting auth token");
-          setAuthToken(authTokenRef.current?.value || "");
+          const token = authTokenRef.current?.value || "";
+          vscode.postMessage({
+            type: "setAuthToken",
+            payload: token,
+          });
+          setAuthToken(token);
           console.log("Retrieving latest conversation");
           retrieveLatestConversation();
         }}

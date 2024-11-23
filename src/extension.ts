@@ -14,37 +14,48 @@ class VoiceModeViewProvider implements vscode.WebviewViewProvider {
         vscode.Uri.joinPath(this._extensionUri, "dist"),
       ],
     };
-  
+
+    const outputChannel = vscode.window.createOutputChannel("Voice Mode");
+    outputChannel.appendLine("Voice Mode is active!");
+    outputChannel.show();
+
+    webviewView.webview.onDidReceiveMessage((message) => {
+      switch (message.type) {
+        case "testButton":
+          outputChannel.appendLine(message.payload);
+          outputChannel.show();
+          vscode.window.showInformationMessage(message.payload);
+          return;
+        case "setAuthToken":
+          outputChannel.appendLine(message.payload);
+          outputChannel.show();
+          return;
+      }
+    });
+
     const scriptUri = webviewView.webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, "dist", "webview.js")
     );
-      
 
-// Add this helper function at the top of the file
-function getNonce() {
-  let text = "";
-  const possible =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  for (let i = 0; i < 32; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
-}
-  
+    // Add this helper function at the top of the file
+    function getNonce() {
+      let text = "";
+      const possible =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+      for (let i = 0; i < 32; i++) {
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+      }
+      return text;
+    }
+
     const nonce = getNonce(); // Generate a nonce for security
-  
+
     webviewView.webview.html = `<!DOCTYPE html>
   <html>
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${
-        webviewView.webview.cspSource
-      } 'unsafe-inline'; script-src ${
-        webviewView.webview.cspSource
-      } 'nonce-${nonce}'; img-src ${
-        webviewView.webview.cspSource
-      } https:; font-src ${webviewView.webview.cspSource};">
+      <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webviewView.webview.cspSource} 'unsafe-inline'; script-src ${webviewView.webview.cspSource} 'nonce-${nonce}'; img-src ${webviewView.webview.cspSource} https:; font-src ${webviewView.webview.cspSource};">
       <title>Voice Mode</title>
       <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
     </head>

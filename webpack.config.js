@@ -20,7 +20,15 @@ const extensionConfig = {
     vscode: 'commonjs vscode', // Prevent bundling the VS Code module
   },
   resolve: {
-    extensions: ['.ts', '.js', '.tsx', '.jsx'], // Support TS and JSX/TSX
+    // alias: {
+    //   '@vscode/webview-ui-toolkit': path.resolve(
+    //     __dirname,
+    //     'node_modules',
+    //     '@vscode',
+    //     'webview-ui-toolkit'
+    //   ),
+    // },
+    extensions: [".ts", ".js", ".tsx", ".jsx"], // Support TS and JSX/TSX
   },
   module: {
     rules: [
@@ -46,6 +54,9 @@ const webviewConfig = {
     path: path.resolve(__dirname, 'dist'),
     filename: 'webview.js',
     libraryTarget: 'module', // Use ECMAScript modules for modern browsers
+  },
+  externals :{
+    vscode:"vscode",// Add ReactDOM as external
   },
   resolve: {
     extensions: ['.ts', '.js', '.tsx', '.jsx'], // Support TS and JSX/TSX
