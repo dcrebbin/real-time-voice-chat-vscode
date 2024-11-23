@@ -12,6 +12,7 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react";
 function App() {
   const [conversationId, setConversationId] = useState("");
   const [latestMessage, setLatestMessage] = useState("");
+  const messageContainerRef = useRef<HTMLDivElement>(null);
   const authTokenRef = useRef<HTMLInputElement>(null);
   const [messageRetrievalDelay, setMessageRetrievalDelay] = useState(500);
   const COPY_ICON = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -21,6 +22,10 @@ function App() {
   let lastMessageReceivedId = "";
   const [debugLog, setDebugLog] = useState("");
   const [isRetrievingMessages, setIsRetrievingMessages] = useState(false);
+
+  const state = useRef({
+    isRetrievingMessages: false,
+  });
 
   async function convertMarkdownToHTML(content: string, index: number) {
     // Configure marked options
@@ -123,6 +128,7 @@ function App() {
     );
   }, []);
 
+  let lastMessage: any = {};
   useEffect(() => {
     if (typeof window !== "undefined") {
       const authToken = window.localStorage.getItem("authToken");
@@ -132,12 +138,16 @@ function App() {
 
       window.addEventListener("message", async (event) => {
         const message = event.data;
+        if (lastMessage === message) {
+          return;
+        }
         const requestedBy = message.requestedBy;
 
         vscode.postMessage({
           type: "log",
           payload: `Received message: ${requestedBy}`,
         });
+        lastMessage = message;
         const data = JSON.parse(message.payload);
         switch (message.requestedBy) {
           case "get-latest-conversation-id":
@@ -149,7 +159,7 @@ function App() {
               setConversationId("No conversations found");
               break;
             }
-            setConversationId(data?.items[0]?.id || JSON.stringify(data));
+            setConversationId((prev) => data?.items[0]?.id || prev);
             break;
           case "get-latest-message":
             if (!data || !data.mapping) {
@@ -181,9 +191,20 @@ function App() {
             });
 
             lastMessageReceivedId = entry.id;
-            const html = await convertMarkdownToHTML(message, 0);
+            const convertedMarkdownElement = (await convertMarkdownToHTML(
+              message,
+              0
+            )) as unknown as HTMLElement;
 
-            setLatestMessage((prevMessage) => prevMessage + html || "Error");
+            if (messageContainerRef.current) {
+              try {
+                messageContainerRef.current.appendChild(
+                  convertedMarkdownElement
+                );
+              } catch (error) {
+                console.error("Failed to execute appendChild on Node:", error);
+              }
+            }
             break;
         }
       });
@@ -236,10 +257,18 @@ function App() {
   }
 
   function startRetrievingMessages() {
-    retrievalInterval = setInterval(
-      retrieveLatestMessage,
-      messageRetrievalDelay
-    );
+    retrievalInterval = setInterval(() => {
+      vscode.postMessage({
+        type: "log",
+        payload: `Retrieving latest message: ${
+          state.current.isRetrievingMessages ? "true" : "false"
+        }`,
+      });
+      if (!state.current.isRetrievingMessages) {
+        clearInterval(retrievalInterval);
+        return;
+      }
+    }, messageRetrievalDelay);
   }
 
   return (
@@ -275,7 +304,7 @@ function App() {
           const authToken = authTokenRef.current?.value || "";
           vscode.postMessage({
             type: "log",
-            payload: `Getting latest conversation ID with auth token: ${authToken}`,
+            payload: `Getting latest conversation ID with auth token`,
           });
           setConversationId("Loading...");
           vscode.postMessage({
@@ -307,12 +336,23 @@ function App() {
       <VSCodeButton
         className="w-full flex justify-center"
         onClick={() => {
-          setIsRetrievingMessages(!isRetrievingMessages);
-          if (isRetrievingMessages) {
-            clearInterval(retrievalInterval);
-          } else {
-            startRetrievingMessages();
-          }
+          setIsRetrievingMessages((prevIsRetrieving) => {
+            const newIsRetrieving = !prevIsRetrieving;
+            state.current.isRetrievingMessages = newIsRetrieving;
+
+            vscode.postMessage({
+              type: "log",
+              payload: `Is retrieving messages: ${newIsRetrieving}`,
+            });
+
+            if (newIsRetrieving) {
+              startRetrievingMessages();
+            } else {
+              clearInterval(retrievalInterval);
+            }
+
+            return newIsRetrieving;
+          });
         }}
       >
         {isRetrievingMessages ? (
@@ -329,7 +369,7 @@ function App() {
       <p>Latest message:</p>
       <div
         className="markdown prose w-full break-words dark:prose-invert flex flex-col gap-4"
-        dangerouslySetInnerHTML={{ __html: latestMessage }}
+        ref={messageContainerRef}
       />
     </div>
   );
