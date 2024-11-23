@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import { useRef, useMemo } from "react";
 import type { WebviewApi } from "vscode-webview";
+import { Marked } from "marked";
+import { markedHighlight } from "marked-highlight";
+import hljs from "highlight.js";
+
 declare function acquireVsCodeApi(): any;
 const vscode: WebviewApi<unknown> = acquireVsCodeApi();
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react";
@@ -9,69 +13,93 @@ function App() {
   const [conversationId, setConversationId] = useState("");
   const [latestMessage, setLatestMessage] = useState("");
   const authTokenRef = useRef<HTMLInputElement>(null);
-  const messageRetrievalDelayRef = useRef<HTMLInputElement>(null);
-  const [latestQuote, setLatestQuote] = useState("");
   const [messageRetrievalDelay, setMessageRetrievalDelay] = useState(500);
+  const COPY_ICON = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <path fill-rule="evenodd" clip-rule="evenodd" d="M7 5C7 3.34315 8.34315 2 10 2H19C20.6569 2 22 3.34315 22 5V14C22 15.6569 20.6569 17 19 17H17V19C17 20.6569 15.6569 22 14 22H5C3.34315 22 2 20.6569 2 19V10C2 8.34315 3.34315 7 5 7H7V5ZM9 7H14C15.6569 7 17 8.34315 17 10V15H19C19.5523 15 20 14.5523 20 14V5C20 4.44772 19.5523 4 19 4H10C9.44772 4 9 4.44772 9 5V7ZM5 9C4.44772 9 4 9.44772 4 10V19C4 19.5523 4.44772 20 5 20H14C14.5523 20 15 19.5523 15 19V10C15 9.44772 14.5523 9 14 9H5Z" fill="currentColor"></path>
+  </svg>`;
 
-  async function getRecentConversation() {
-    const authToken = authTokenRef.current?.value || "";
-    vscode.postMessage({
-      type: "log",
-      payload: `Getting the latest conversation with auth token: ${authToken}`,
-    });
-    const res = await fetch(
-      "https://chatgpt.com/backend-api/conversations?offset=0&limit=1&order=updated",
-      {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          "Content-Type": "application/json",
+  async function convertMarkdownToHTML(content: string, index: number) {
+    // Configure marked options
+    const marked = new Marked({
+      ...markedHighlight({
+        emptyLangClass: "hljs",
+        langPrefix: "hljs language-",
+        highlight(code: string, lang: string) {
+          const language = hljs.getLanguage(lang) ? lang : "plaintext";
+          return hljs.highlight(code, { language }).value; // Removed trim() to preserve whitespace
         },
-        method: "GET",
-      }
-    );
-
-    if (!res.ok) {
-      vscode.postMessage({
-        type: "log",
-        payload:
-          "Failed to get recent conversation ID, auth token may be invalid",
-      });
-      return null;
-    }
-
-    const data: any = await res.json();
-    vscode.postMessage({
-      type: "log",
-      payload: `Latest conversation retrieved: ${JSON.stringify(data)}`,
+      }),
     });
 
-    if (!data || !data.items || !data.items.length) {
-      vscode.postMessage({
-        type: "log",
-        payload: "No conversations found",
+    marked.setOptions({
+      gfm: true, // GitHub Flavored Markdown
+      breaks: true, // Convert \n to <br>
+    });
+
+    // Custom renderer to override default HTML output
+    const renderer = new marked.Renderer();
+
+    // Customize code blocks
+    renderer.code = ({ text, lang }) => {
+      const html = `<pre class="!overflow-visible">
+      <div class="contain-inline-size rounded-md border-[0.5px] border-token-border-medium relative bg-token-sidebar-surface-primary dark:bg-gray-950">
+        <div class="flex absolute top-0 w-full items-center text-token-text-secondary px-4 py-2 text-xs font-sans justify-between rounded-t-md h-9 bg-token-sidebar-surface-primary dark:bg-token-main-surface-secondary select-none">
+          <p>${lang || ""}</p>
+          <button id="${index}-copy-button" class="flex gap-1 items-center select-none py-1">
+          ${COPY_ICON}
+          <span>Copy code</span>
+          </button>
+        </div>
+        <div class="overflow-y-auto p-4 flex" dir="ltr">
+          <code class="!whitespace-pre hljs language-${lang}" id="${index}-code">${text}</code>
+        </div>
+      </div>
+    </pre>`;
+
+      // Create a MutationObserver to watch for when the elements are added
+      const observer = new MutationObserver((mutations, obs) => {
+        const codeElement = document.getElementById(`${index}-code`);
+        const copyButton = document.getElementById(`${index}-copy-button`);
+
+        if (codeElement && copyButton) {
+          copyButton.addEventListener("click", () => {
+            console.log(`Copying code from element ${index}`);
+            navigator.clipboard.writeText(codeElement.textContent || "");
+            copyButton.innerHTML = COPY_ICON + "<span>Copied!</span>";
+            setTimeout(() => {
+              copyButton.innerHTML = COPY_ICON + "<span>Copy code</span>";
+            }, 1000);
+          });
+
+          // Once we've found and set up our elements, disconnect the observer
+          obs.disconnect();
+        }
       });
-      return null;
-    }
 
-    const latestConversation = data.items[0];
-    if (!latestConversation?.id || !latestConversation?.create_time) {
-      vscode.postMessage({
-        type: "log",
-        payload: "Invalid conversation data received",
+      // Start observing the document with the configured parameters
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
       });
-      return null;
-    }
 
-    const createdTime = new Date(latestConversation.create_time);
-    const now = new Date();
-    const timeDifference = now.getTime() - createdTime.getTime();
-    const minutesDifference = Math.floor(timeDifference / 60000);
-
-    return {
-      id: latestConversation.id,
-      createdTime: createdTime,
-      minutesDifference: minutesDifference,
+      return html;
     };
+
+    // Customize inline code
+    renderer.codespan = ({ text }) => {
+      return `<code class="bg-token-surface-primary rounded px-1.5 py-0.5">${text}</code>`;
+    };
+
+    // Customize paragraphs
+    renderer.paragraph = ({ text }) => {
+      return `<p class="mb-4">${text}</p>`;
+    };
+
+    // Set the custom renderer
+    marked.use({ renderer });
+
+    // Convert markdown to HTML
+    return marked.parse(content);
   }
 
   function handleAuthTokenChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -96,7 +124,7 @@ function App() {
         authTokenRef.current!.value = authToken;
       }
 
-      window.addEventListener("message", (event) => {
+      window.addEventListener("message", async (event) => {
         const message = event.data;
         const requestedBy = message.requestedBy;
 
@@ -136,7 +164,9 @@ function App() {
             const message =
               entry.message.content?.parts[0]?.text ||
               entry.message.content.parts[0];
-            setLatestMessage(message || "Error");
+
+            const html = await convertMarkdownToHTML(message, 0);
+            setLatestMessage(html || "Error");
             break;
         }
       });
@@ -225,7 +255,10 @@ function App() {
         Get latest conversation
       </VSCodeButton>
       <p>Latest message:</p>
-      <p>{latestMessage}</p>
+      <div
+        className="prose max-w-none"
+        dangerouslySetInnerHTML={{ __html: latestMessage }}
+      />
     </div>
   );
 }
