@@ -9,7 +9,9 @@ function App() {
   const [conversationId, setConversationId] = useState("");
   const [latestMessage, setLatestMessage] = useState("");
   const authTokenRef = useRef<HTMLInputElement>(null);
+  const messageRetrievalDelayRef = useRef<HTMLInputElement>(null);
   const [latestQuote, setLatestQuote] = useState("");
+  const [messageRetrievalDelay, setMessageRetrievalDelay] = useState(500);
 
   async function getRecentConversation() {
     const authToken = authTokenRef.current?.value || "";
@@ -105,9 +107,25 @@ function App() {
         const data = JSON.parse(message.payload);
         switch (message.requestedBy) {
           case "get-latest-conversation-id":
+            if (!data?.items || !data?.items.length) {
+              vscode.postMessage({
+                type: "log",
+                payload: `No conversations found: ${JSON.stringify(data)}`,
+              });
+              setConversationId("No conversations found");
+              break;
+            }
             setConversationId(data?.items[0]?.id || JSON.stringify(data));
             break;
           case "get-latest-message":
+            if (!data || !data.mapping) {
+              vscode.postMessage({
+                type: "log",
+                payload: `No messages found: ${JSON.stringify(data)}`,
+              });
+              setLatestMessage("No messages found");
+              break;
+            }
             const filteredMapping = Object.entries(data.mapping).filter(
               ([key, value]: [string, any]) =>
                 value?.message?.author?.role === "assistant"
@@ -124,6 +142,12 @@ function App() {
       });
     }
   }, []);
+
+  function handleMessageRetrievalDelayChange(
+    e: React.ChangeEvent<HTMLInputElement>
+  ) {
+    setMessageRetrievalDelay(parseInt(e.target.value));
+  }
 
   return (
     <div className="p-4 flex flex-col gap-4">
@@ -142,6 +166,16 @@ function App() {
       >
         Set auth token
       </VSCodeButton>
+      <p>Retrieval delay: {messageRetrievalDelay}ms</p>
+      <input
+        onChange={handleMessageRetrievalDelayChange}
+        className="w-full text-black resize-y"
+        type="range"
+        min="200"
+        max="1500"
+        step="100"
+        value={messageRetrievalDelay}
+      />
       <VSCodeButton
         disabled={authTokenRef.current?.value === ""}
         onClick={async () => {
