@@ -126,13 +126,14 @@ function App() {
   }, []);
 
   return (
-    <div>
-      <h2>Realtime Voice Mode Chat</h2>
+    <div className="p-4 flex flex-col gap-4">
+      <h2 className="text-2xl font-bold">Realtime Voice Mode Chat</h2>
       <button
+        className="bg-blue-500 text-white p-2 rounded-md"
         onClick={() => {
           console.log("Test button clicked");
           vscode.postMessage({
-            type: "testButton",
+            type: "display",
             payload: "Hello World!",
           });
         }}
@@ -142,6 +143,7 @@ function App() {
       <p>Auth token:</p>
       {inputMemo}
       <button
+        className="bg-blue-500 text-white p-2 rounded-md"
         onClick={async () => {
           const token = authTokenRef.current?.value || "";
           vscode.postMessage({
@@ -171,7 +173,10 @@ function App() {
       </button>
       <p>Conversation ID:</p>
       <p>{conversationId}</p>
-      <button onClick={() => retrieveLatestConversation()}>
+      <button
+        className="bg-blue-500 text-white p-2 rounded-md"
+        onClick={() => retrieveLatestConversation()}
+      >
         Get latest conversation
       </button>
       <p>Latest message:</p>
