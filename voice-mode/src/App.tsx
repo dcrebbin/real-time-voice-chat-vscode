@@ -19,12 +19,13 @@ function App() {
   <path fill-rule="evenodd" clip-rule="evenodd" d="M7 5C7 3.34315 8.34315 2 10 2H19C20.6569 2 22 3.34315 22 5V14C22 15.6569 20.6569 17 19 17H17V19C17 20.6569 15.6569 22 14 22H5C3.34315 22 2 20.6569 2 19V10C2 8.34315 3.34315 7 5 7H7V5ZM9 7H14C15.6569 7 17 8.34315 17 10V15H19C19.5523 15 20 14.5523 20 14V5C20 4.44772 19.5523 4 19 4H10C9.44772 4 9 4.44772 9 5V7ZM5 9C4.44772 9 4 9.44772 4 10V19C4 19.5523 4.44772 20 5 20H14C14.5523 20 15 19.5523 15 19V10C15 9.44772 14.5523 9 14 9H5Z" fill="currentColor"></path>
   </svg>`;
 
-  let lastMessageReceivedId = "";
   const [debugLog, setDebugLog] = useState("");
   const [isRetrievingMessages, setIsRetrievingMessages] = useState(false);
 
   const state = useRef({
     isRetrievingMessages: false,
+    lastMessageReceivedId: "",
+    conversationId: "",
   });
 
   async function convertMarkdownToHTML(content: string, index: number) {
@@ -181,7 +182,11 @@ function App() {
               entry.message.content?.parts[0]?.text ||
               entry.message.content.parts[0];
 
-            if (entry.id === lastMessageReceivedId) {
+            if (entry.id === state.current.lastMessageReceivedId) {
+              vscode.postMessage({
+                type: "log",
+                payload: "No new messages",
+              });
               break;
             }
 
@@ -190,26 +195,32 @@ function App() {
               payload: `Last message received ID: ${entry.id}`,
             });
 
-            lastMessageReceivedId = entry.id;
-            const convertedMarkdownElement = (await convertMarkdownToHTML(
+            state.current.lastMessageReceivedId = entry.id;
+            const convertedMarkdownElement = document.createElement("div");
+            convertedMarkdownElement.innerHTML = await convertMarkdownToHTML(
               message,
               0
-            )) as unknown as HTMLElement;
+            );
 
-            if (messageContainerRef.current) {
-              try {
-                messageContainerRef.current.appendChild(
-                  convertedMarkdownElement
-                );
-              } catch (error) {
-                console.error("Failed to execute appendChild on Node:", error);
-              }
+            const messageContainer = messageContainerRef.current;
+            if (messageContainer) {
+              messageContainer.appendChild(convertedMarkdownElement);
             }
             break;
         }
       });
     }
   }, []);
+
+  useEffect(() => {
+    if (!state.current.isRetrievingMessages) {
+      vscode.postMessage({
+        type: "log",
+        payload: "Stopping retrieval interval",
+      });
+      clearInterval(retrievalInterval);
+    }
+  }, [state.current.isRetrievingMessages]);
 
   const LoadingIcon = useMemo(
     () => (
@@ -241,6 +252,7 @@ function App() {
 
   function retrieveLatestMessage() {
     const authToken = authTokenRef.current?.value || "";
+
     vscode.postMessage({
       type: "request",
       payload: {
