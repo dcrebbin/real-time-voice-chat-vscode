@@ -2,42 +2,57 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
 
-// Custom sidebar view provider
-class VoiceModeViewProvider implements vscode.WebviewViewProvider {
-  constructor(private readonly _extensionUri: vscode.Uri) {}
+// This method is called when your extension is activated
+// Your extension is activated the very first time the command is executed
+export function activate(context: vscode.ExtensionContext) {
+  // Use the console to output diagnostic information (console.log) and errors (console.error)
+  // This line of code will only be executed once when your extension is activated
+  const outputChannel = vscode.window.createOutputChannel("Voice Mode");
+  outputChannel.appendLine("Voice Mode is active!");
+  outputChannel.show();
 
-  resolveWebviewView(webviewView: vscode.WebviewView) {
-    webviewView.webview.options = {
-      enableScripts: true,
-      localResourceRoots: [
-        vscode.Uri.joinPath(this._extensionUri, "media"),
-        vscode.Uri.joinPath(this._extensionUri, "dist"),
-      ],
-    };
+  let webview = vscode.commands.registerCommand("voice-mode.helloWorld", () => {
+    let panel = vscode.window.createWebviewPanel(
+      "webview",
+      "Voice Mode",
+      vscode.ViewColumn.Two,
+      {
+        enableScripts: true,
+      }
+    );
 
-    const outputChannel = vscode.window.createOutputChannel("Voice Mode");
-    outputChannel.appendLine("Voice Mode is active!");
-    outputChannel.show();
-
-    webviewView.webview.onDidReceiveMessage((message) => {
+    panel.webview.onDidReceiveMessage((message) => {
+      outputChannel.appendLine(JSON.stringify(message));
+      outputChannel.show();
       switch (message.type) {
-        case "testButton":
-          outputChannel.appendLine(message.payload);
-          outputChannel.show();
+        case "display":
           vscode.window.showInformationMessage(message.payload);
           return;
-        case "setAuthToken":
-          outputChannel.appendLine(message.payload);
-          outputChannel.show();
+        case "log":
           return;
       }
     });
 
-    const scriptUri = webviewView.webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "dist", "webview.js")
+    // Paths to resources
+    let scriptSrc = panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(
+        context.extensionUri,
+        "voice-mode",
+        "dist",
+        "index.js"
+      )
+    );
+    let cssSrc = panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(
+        context.extensionUri,
+        "voice-mode",
+        "dist",
+        "index.css"
+      )
     );
 
-    // Add this helper function at the top of the file
+    const apiUrl = "https://quotes-api-self.vercel.app/quote";
+
     function getNonce() {
       let text = "";
       const possible =
@@ -48,57 +63,24 @@ class VoiceModeViewProvider implements vscode.WebviewViewProvider {
       return text;
     }
 
-    const nonce = getNonce(); // Generate a nonce for security
+    const nonce = getNonce();
 
-    webviewView.webview.html = `<!DOCTYPE html>
-  <html>
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webviewView.webview.cspSource} 'unsafe-inline'; script-src ${webviewView.webview.cspSource} 'nonce-${nonce}'; img-src ${webviewView.webview.cspSource} https:; font-src ${webviewView.webview.cspSource};">
-      <title>Voice Mode</title>
-      <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
-    </head>
-    <body>
-      <div id="root"></div>
-    </body>
-  </html>`;
-  }
-}
+    panel.webview.html = `<!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <link rel="stylesheet" href="${cssSrc}" />
+      </head>
+      <body>
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${panel.webview.cspSource} 'unsafe-inline'; script-src ${panel.webview.cspSource} 'nonce-${nonce}'; img-src ${panel.webview.cspSource} https:; font-src ${panel.webview.cspSource};">
+        <noscript>You need to enable JavaScript to run this app.</noscript>
+        <div id="root" data-api-url="${apiUrl}" nonce="${nonce}"></div>
+        <script src="${scriptSrc}" nonce="${nonce}"></script>
+      </body>
+    </html>
+    `;
+  });
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
-  // Use the console to output diagnostic information (console.log) and errors (console.error)
-  // This line of code will only be executed once when your extension is activated
-  console.log('Congratulations, your extension "voice-mode" is now active!');
-
-  // Register the custom sidebar view provider
-  const provider = new VoiceModeViewProvider(context.extensionUri);
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider("voice-mode-view", provider)
-  );
-
-  // Register command to show the webview
-  const showViewCommand = vscode.commands.registerCommand(
-    "voice-mode.showView",
-    () => {
-      vscode.commands.executeCommand(
-        "workbench.view.extension.voice-mode-view"
-      );
-    }
-  );
-
-  // Register keyboard shortcut to show view
-  const disposable = vscode.commands.registerCommand(
-    "voice-mode.helloWorld",
-    () => {
-      vscode.window.showInformationMessage("Hello World from voice-mode!");
-    }
-  );
-
-  context.subscriptions.push(showViewCommand);
-  context.subscriptions.push(disposable);
+  context.subscriptions.push(webview);
 }
 
 // This method is called when your extension is deactivated

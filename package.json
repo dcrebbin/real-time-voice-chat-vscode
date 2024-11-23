@@ -9,46 +9,20 @@
   "categories": [
     "Other"
   ],
-  "main": "./dist/extension.js",
+  "main": "./out/extension.js",
   "contributes": {
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "voice-mode",
-          "title": "Voice Mode",
-          "icon": "$(mic)"
-        }
-      ]
-    },
-    "views": {
-      "voice-mode": [
-        {
-          "type": "webview",
-          "id": "voice-mode-view",
-          "name": "Voice Mode Controls"
-        }
-      ]
-    },
     "commands": [
       {
         "command": "voice-mode.helloWorld",
         "title": "Voice Mode: Test"
-      },
-      {
-        "command": "voice-mode.showView",
-        "title": "Voice Mode: Show View"
       }
     ]
   },
   "scripts": {
-    "vscode:prepublish": "pnpm run package",
-    "compile": "webpack",
-    "build": "react-scripts build",
-    "watch": "webpack --watch",
-    "package": "webpack --mode production --devtool hidden-source-map",
-    "compile-tests": "tsc -p . --outDir out",
-    "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "vscode-test"
   },
@@ -63,14 +37,27 @@
     "@typescript-eslint/parser": "^8.7.0",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1",
+    "browserify-zlib": "^0.2.0",
+    "buffer": "^6.0.3",
     "eslint": "^9.13.0",
+    "https-browserify": "^1.0.0",
+    "parcel": "^2.13.0",
+    "path-browserify": "^1.0.1",
+    "postcss": "^8.4.49",
+    "process": "^0.11.10",
+    "stream-browserify": "^3.0.0",
+    "stream-http": "^3.2.0",
+    "tailwindcss": "^3.4.15",
     "ts-loader": "^9.5.1",
     "typescript": "^5.6.3",
-    "webpack": "^5.95.0",
+    "url": "^0.11.4",
+    "util": "^0.12.5",
+    "webpack": "^5.96.1",
     "webpack-cli": "^5.1.4"
   },
   "packageManager": "pnpm@9.12.2+sha512.22721b3a11f81661ae1ec68ce1a7b879425a1ca5b991c975b074ac220b187ce56c708fe5db69f4c962c989452eee76c82877f4ee80f474cebd61ee13461b6228",
   "dependencies": {
+    "node-fetch": "^3.3.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   }
