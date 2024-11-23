@@ -8,10 +8,13 @@ import * as vscode from "vscode";
 async function fetchData(request: any, outputChannel: vscode.OutputChannel) {
   const res = await fetch(request.url, {
     method: request.method,
-    body: request.body,
     headers: request.headers,
   });
-  const data = await res.json();
+  const data = await res.json().catch((e) => {
+    outputChannel.appendLine(JSON.stringify(e));
+    outputChannel.show();
+    return null;
+  });
   outputChannel.appendLine(JSON.stringify(data));
   outputChannel.show();
   return data;
@@ -35,16 +38,22 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     panel.webview.onDidReceiveMessage(async (message) => {
-      outputChannel.appendLine(JSON.stringify(message));
-      outputChannel.show();
       switch (message.type) {
         case "display":
           vscode.window.showInformationMessage(message.payload);
           return;
         case "log":
+          outputChannel.appendLine(message.payload);
+          outputChannel.show();
           return;
         case "request":
-          const data = await fetchData(message.payload, outputChannel);
+          const data = await fetchData(message.payload, outputChannel).catch(
+            (e) => {
+              outputChannel.appendLine(JSON.stringify(e));
+              outputChannel.show();
+              return null;
+            }
+          );
           panel.webview.postMessage({
             type: "update-data",
             requestedBy: message.payload.requestedBy,
