@@ -18,6 +18,8 @@ function App() {
   <path fill-rule="evenodd" clip-rule="evenodd" d="M7 5C7 3.34315 8.34315 2 10 2H19C20.6569 2 22 3.34315 22 5V14C22 15.6569 20.6569 17 19 17H17V19C17 20.6569 15.6569 22 14 22H5C3.34315 22 2 20.6569 2 19V10C2 8.34315 3.34315 7 5 7H7V5ZM9 7H14C15.6569 7 17 8.34315 17 10V15H19C19.5523 15 20 14.5523 20 14V5C20 4.44772 19.5523 4 19 4H10C9.44772 4 9 4.44772 9 5V7ZM5 9C4.44772 9 4 9.44772 4 10V19C4 19.5523 4.44772 20 5 20H14C14.5523 20 15 19.5523 15 19V10C15 9.44772 14.5523 9 14 9H5Z" fill="currentColor"></path>
   </svg>`;
 
+  let lastMessageReceivedId = "";
+  const [debugLog, setDebugLog] = useState("");
   const [isRetrievingMessages, setIsRetrievingMessages] = useState(false);
 
   async function convertMarkdownToHTML(content: string, index: number) {
@@ -28,7 +30,7 @@ function App() {
         langPrefix: "hljs language-",
         highlight(code: string, lang: string) {
           const language = hljs.getLanguage(lang) ? lang : "plaintext";
-          return hljs.highlight(code, { language }).value; // Removed trim() to preserve whitespace
+          return hljs.highlight(code, { language }).value;
         },
       }),
     });
@@ -43,20 +45,21 @@ function App() {
 
     // Customize code blocks
     renderer.code = ({ text, lang }) => {
+      const escapedText = text.replace(/`/g, "&#96;");
       const html = `<pre class="!overflow-visible">
-      <div class="contain-inline-size rounded-md border-[0.5px] border-token-border-medium relative bg-token-sidebar-surface-primary dark:bg-gray-950">
-        <div class="flex absolute top-0 w-full items-center text-token-text-secondary px-4 py-2 text-xs font-sans justify-between rounded-t-md h-9 bg-token-sidebar-surface-primary dark:bg-token-main-surface-secondary select-none">
-          <p>${lang || ""}</p>
-          <button id="${index}-copy-button" class="flex gap-1 items-center select-none py-1">
-          ${COPY_ICON}
-          <span>Copy code</span>
-          </button>
+        <div class="contain-inline-size rounded-md border-[0.5px] border-token-border-medium relative bg-token-sidebar-surface-primary dark:bg-gray-950">
+          <div class="flex absolute top-0 w-full items-center text-token-text-secondary px-4 py-2 text-xs font-sans justify-between rounded-t-md h-9 bg-token-sidebar-surface-primary dark:bg-token-main-surface-secondary select-none">
+            <p>${lang || ""}</p>
+            <button id="${index}-copy-button" class="flex gap-1 items-center select-none py-1">
+            ${COPY_ICON}
+            <span>Copy code</span>
+            </button>
+          </div>
+          <div class="overflow-y-auto p-4 flex" dir="ltr">
+            <code class="!whitespace-pre hljs language-${lang}" id="${index}-code">${escapedText}</code>
+          </div>
         </div>
-        <div class="overflow-y-auto p-4 flex" dir="ltr">
-          <code class="!whitespace-pre hljs language-${lang}" id="${index}-code">${text}</code>
-        </div>
-      </div>
-    </pre>`;
+      </pre>`;
 
       // Create a MutationObserver to watch for when the elements are added
       const observer = new MutationObserver((mutations, obs) => {
@@ -89,7 +92,8 @@ function App() {
 
     // Customize inline code
     renderer.codespan = ({ text }) => {
-      return `<code class="bg-token-surface-primary rounded px-1.5 py-0.5">${text}</code>`;
+      const escapedText = text.replace(/`/g, "&#96;");
+      return `<code class="bg-token-surface-primary rounded px-1.5 py-0.5">${escapedText}</code>`;
     };
 
     // Customize paragraphs
@@ -167,8 +171,19 @@ function App() {
               entry.message.content?.parts[0]?.text ||
               entry.message.content.parts[0];
 
+            if (entry.id === lastMessageReceivedId) {
+              break;
+            }
+
+            vscode.postMessage({
+              type: "log",
+              payload: `Last message received ID: ${entry.id}`,
+            });
+
+            lastMessageReceivedId = entry.id;
             const html = await convertMarkdownToHTML(message, 0);
-            setLatestMessage(html || "Error");
+
+            setLatestMessage((prevMessage) => prevMessage + html || "Error");
             break;
         }
       });
@@ -199,6 +214,32 @@ function App() {
     e: React.ChangeEvent<HTMLInputElement>
   ) {
     setMessageRetrievalDelay(parseInt(e.target.value));
+  }
+
+  let retrievalInterval: NodeJS.Timeout;
+
+  function retrieveLatestMessage() {
+    const authToken = authTokenRef.current?.value || "";
+    vscode.postMessage({
+      type: "request",
+      payload: {
+        requestedBy: "get-latest-message",
+        method: "GET",
+        escapeBackticks: true,
+        url: `https://chatgpt.com/backend-api/conversation/${conversationId}`,
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        },
+      },
+    });
+  }
+
+  function startRetrievingMessages() {
+    retrievalInterval = setInterval(
+      retrieveLatestMessage,
+      messageRetrievalDelay
+    );
   }
 
   return (
@@ -258,27 +299,21 @@ function App() {
       <VSCodeButton
         disabled={!conversationId}
         onClick={() => {
-          setLatestMessage("Loading...");
-          const authToken = authTokenRef.current?.value || "";
-          vscode.postMessage({
-            type: "request",
-            payload: {
-              requestedBy: "get-latest-message",
-              method: "GET",
-              url: `https://chatgpt.com/backend-api/conversation/${conversationId}`,
-              headers: {
-                Authorization: `Bearer ${authToken}`,
-                "Content-Type": "application/json",
-              },
-            },
-          });
+          retrieveLatestMessage();
         }}
       >
         Get latest conversation
       </VSCodeButton>
       <VSCodeButton
         className="w-full flex justify-center"
-        onClick={() => setIsRetrievingMessages(!isRetrievingMessages)}
+        onClick={() => {
+          setIsRetrievingMessages(!isRetrievingMessages);
+          if (isRetrievingMessages) {
+            clearInterval(retrievalInterval);
+          } else {
+            startRetrievingMessages();
+          }
+        }}
       >
         {isRetrievingMessages ? (
           <span className="flex gap-2 items-center w-full justify-center">
@@ -293,7 +328,7 @@ function App() {
       </VSCodeButton>
       <p>Latest message:</p>
       <div
-        className="prose max-w-none"
+        className="markdown prose w-full break-words dark:prose-invert flex flex-col gap-4"
         dangerouslySetInnerHTML={{ __html: latestMessage }}
       />
     </div>
