@@ -4,7 +4,14 @@ import { useRef, useMemo } from "react";
 import type { WebviewApi } from "vscode-webview";
 declare function acquireVsCodeApi(): any;
 const vscode: WebviewApi<unknown> = acquireVsCodeApi();
-
+import {
+  VSCodeButton,
+  VSCodeDataGrid,
+  VSCodeDataGridRow,
+  VSCodeDataGridCell,
+  VSCodeTextField,
+  VSCodeProgressRing,
+} from "@vscode/webview-ui-toolkit/react";
 function App() {
   const [authToken, setAuthToken] = useState("");
   const [conversationId, setConversationId] = useState("");
@@ -125,25 +132,41 @@ function App() {
     return <input type="password" ref={authTokenRef} />;
   }, []);
 
+  async function handleTestButtonClick() {
+    vscode.postMessage({
+      type: "display",
+      payload: "Hello World!",
+    });
+    const res = await fetch("https://quotes-api-self.vercel.app/quote");
+    const data = await res.json();
+
+    if (!res.ok) {
+      vscode.postMessage({
+        type: "display",
+        payload: "Failed to fetch quote",
+      });
+      return;
+    }
+    vscode.postMessage({
+      type: "display",
+      payload: data.quote,
+    });
+  }
+
   return (
     <div className="p-4 flex flex-col gap-4">
       <h2 className="text-2xl font-bold">Realtime Voice Mode Chat</h2>
-      <button
-        className="bg-blue-500 text-white p-2 rounded-md"
+      <VSCodeButton
+        className="cursor-pointer"
         onClick={() => {
-          console.log("Test button clicked");
-          vscode.postMessage({
-            type: "display",
-            payload: "Hello World!",
-          });
+          handleTestButtonClick();
         }}
       >
         Test Button
-      </button>
+      </VSCodeButton>
       <p>Auth token:</p>
       {inputMemo}
-      <button
-        className="bg-blue-500 text-white p-2 rounded-md"
+      <VSCodeButton
         onClick={async () => {
           const token = authTokenRef.current?.value || "";
           vscode.postMessage({
@@ -170,15 +193,12 @@ function App() {
         }}
       >
         Set auth token
-      </button>
+      </VSCodeButton>
       <p>Conversation ID:</p>
       <p>{conversationId}</p>
-      <button
-        className="bg-blue-500 text-white p-2 rounded-md"
-        onClick={() => retrieveLatestConversation()}
-      >
+      <VSCodeButton onClick={() => retrieveLatestConversation()}>
         Get latest conversation
-      </button>
+      </VSCodeButton>
       <p>Latest message:</p>
       <p>{latestMessage}</p>
     </div>

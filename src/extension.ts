@@ -51,7 +51,7 @@ export function activate(context: vscode.ExtensionContext) {
       )
     );
 
-    const apiUrl = "https://quotes-api-self.vercel.app/quote";
+    const apiUrl = "https://chatgpt.com/backend-api";
 
     function getNonce() {
       let text = "";
