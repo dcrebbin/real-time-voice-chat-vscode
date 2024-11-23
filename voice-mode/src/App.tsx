@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 import { useRef, useMemo } from "react";
 import type { WebviewApi } from "vscode-webview";
@@ -17,7 +17,7 @@ function App() {
   const [conversationId, setConversationId] = useState("");
   const [latestMessage, setLatestMessage] = useState("");
   const authTokenRef = useRef<HTMLInputElement>(null);
-
+  const [latestQuote, setLatestQuote] = useState("");
   async function getRecentConversation() {
     vscode.postMessage({
       type: "log",
@@ -137,21 +137,34 @@ function App() {
       type: "display",
       payload: "Hello World!",
     });
-    const res = await fetch("https://quotes-api-self.vercel.app/quote");
-    const data = await res.json();
-
-    if (!res.ok) {
-      vscode.postMessage({
-        type: "display",
-        payload: "Failed to fetch quote",
-      });
-      return;
-    }
     vscode.postMessage({
-      type: "display",
-      payload: data.quote,
+      type: "request",
+      payload: {
+        requestedBy: "quotes",
+        method: "GET",
+        url: "https://quotes-api-self.vercel.app/quote",
+      },
     });
   }
+
+  useEffect(() => {
+    console.log("App mounted");
+    if (typeof window !== "undefined") {
+      window.addEventListener("message", (event) => {
+        vscode.postMessage({
+          type: "log",
+          payload: `Received message type: ${event.data.type}, requestedBy: ${event.data.requestedBy}`,
+        });
+        const message = event.data;
+
+        vscode.postMessage({
+          type: "log",
+          payload: `Updated latest quote: ${message.payload}`,
+        });
+        setLatestQuote(JSON.parse(message.payload).quote);
+      });
+    }
+  }, []);
 
   return (
     <div className="p-4 flex flex-col gap-4">
@@ -164,6 +177,8 @@ function App() {
       >
         Test Button
       </VSCodeButton>
+      <p>Latest quote:</p>
+      <p>{latestQuote}</p>
       <p>Auth token:</p>
       {inputMemo}
       <VSCodeButton

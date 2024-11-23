@@ -4,6 +4,19 @@ import * as vscode from "vscode";
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
+
+async function fetchData(request: any, outputChannel: vscode.OutputChannel) {
+  const res = await fetch(request.url, {
+    method: request.method,
+    body: request.body,
+    headers: request.headers,
+  });
+  const data = await res.json();
+  outputChannel.appendLine(JSON.stringify(data));
+  outputChannel.show();
+  return data;
+}
+
 export function activate(context: vscode.ExtensionContext) {
   // Use the console to output diagnostic information (console.log) and errors (console.error)
   // This line of code will only be executed once when your extension is activated
@@ -21,7 +34,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
-    panel.webview.onDidReceiveMessage((message) => {
+    panel.webview.onDidReceiveMessage(async (message) => {
       outputChannel.appendLine(JSON.stringify(message));
       outputChannel.show();
       switch (message.type) {
@@ -30,6 +43,13 @@ export function activate(context: vscode.ExtensionContext) {
           return;
         case "log":
           return;
+        case "request":
+          const data = await fetchData(message.payload, outputChannel);
+          panel.webview.postMessage({
+            type: "update-data",
+            requestedBy: message.payload.requestedBy,
+            payload: JSON.stringify(data),
+          });
       }
     });
 
